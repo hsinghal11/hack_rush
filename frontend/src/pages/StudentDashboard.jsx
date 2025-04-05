@@ -15,6 +15,7 @@ const StudentDashboard = () => {
   const [myClubs, setMyClubs] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
   const [mySavedNotices, setMySavedNotices] = useState([]);
+  const [myBookmarkedEvents, setMyBookmarkedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -67,6 +68,15 @@ const StudentDashboard = () => {
               isSaved: true
             }
           ]);
+          setMyBookmarkedEvents([
+            {
+              _id: 'test-event-2',
+              name: 'Workshop 2025',
+              description: 'A learning workshop',
+              date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+              isBookmarked: true
+            }
+          ]);
           setLoading(false);
           return;
         }
@@ -84,9 +94,30 @@ const StudentDashboard = () => {
         }
         
         setUserProfile(profileData);
-        setMyClubs(Array.isArray(clubsData) ? clubsData : []);
-        setMyEvents(Array.isArray(eventsData) ? eventsData : []);
-        setMySavedNotices(Array.isArray(noticesData) ? noticesData : []);
+        
+        // Process clubs data
+        setMyClubs(Array.isArray(clubsData) ? clubsData.map(club => ({
+          ...club,
+          isMember: true  // These are user's clubs, so they are a member
+        })) : []);
+        
+        // Process events data and separate registered vs bookmarked
+        if (Array.isArray(eventsData)) {
+          const registered = eventsData.filter(event => event.isRegistered);
+          const bookmarked = eventsData.filter(event => event.isBookmarked && !event.isRegistered);
+          
+          setMyEvents(registered);
+          setMyBookmarkedEvents(bookmarked);
+        } else {
+          setMyEvents([]);
+          setMyBookmarkedEvents([]);
+        }
+        
+        // Process notices - all should be marked as saved
+        setMySavedNotices(Array.isArray(noticesData) ? noticesData.map(notice => ({
+          ...notice,
+          isSaved: true
+        })) : []);
       } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to load your dashboard data. Please try again later.');
@@ -188,6 +219,7 @@ const StudentDashboard = () => {
             <TabsList className="mb-6">
               <TabsTrigger value="clubs">My Clubs</TabsTrigger>
               <TabsTrigger value="events">My Events</TabsTrigger>
+              <TabsTrigger value="bookmarks">Bookmarked Events</TabsTrigger>
               <TabsTrigger value="notices">Saved Notices</TabsTrigger>
             </TabsList>
             
@@ -217,6 +249,23 @@ const StudentDashboard = () => {
                 ) : (
                   <div className="col-span-3 text-center py-8">
                     <p className="text-gray-500">You haven't registered for any events yet</p>
+                    <a href="/events" className="inline-block mt-4 text-purple-600 hover:underline">
+                      Browse upcoming events
+                    </a>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="bookmarks">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {myBookmarkedEvents.length > 0 ? (
+                  myBookmarkedEvents.map((event) => (
+                    <EventCard key={event._id} event={event} />
+                  ))
+                ) : (
+                  <div className="col-span-3 text-center py-8">
+                    <p className="text-gray-500">You haven't bookmarked any events yet</p>
                     <a href="/events" className="inline-block mt-4 text-purple-600 hover:underline">
                       Browse upcoming events
                     </a>

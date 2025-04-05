@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { getAllEvents } from '../lib/api';
+import { getAllEvents, getUserEvents } from '../lib/api';
 import EventCard from '../components/EventCard';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../lib/AuthContext';
 
 const Events = () => {
+  const { currentUser } = useAuth();
   const [events, setEvents] = useState([]);
+  const [userEvents, setUserEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,8 +18,38 @@ const Events = () => {
     const fetchEvents = async () => {
       try {
         setLoading(true);
-        const data = await getAllEvents();
-        setEvents(data);
+        const [allEvents, userEventsData] = await Promise.all([
+          getAllEvents(),
+          currentUser ? getUserEvents() : []
+        ]);
+        
+        // Get arrays or default to empty arrays if undefined
+        const eventsArray = Array.isArray(allEvents) ? allEvents : [];
+        const userEventsArray = Array.isArray(userEventsData) ? userEventsData : [];
+        
+        // Store user events for reference
+        setUserEvents(userEventsArray);
+        
+        // Mark events the user has already registered for or bookmarked
+        const processedEvents = eventsArray.map(event => {
+          // Check if user is registered for this event
+          const isRegistered = userEventsArray.some(
+            userEvent => userEvent._id === event._id && userEvent.isRegistered
+          );
+          
+          // Check if user has bookmarked this event
+          const isBookmarked = userEventsArray.some(
+            userEvent => userEvent._id === event._id && userEvent.isBookmarked
+          );
+          
+          return {
+            ...event,
+            isRegistered,
+            isBookmarked
+          };
+        });
+        
+        setEvents(processedEvents);
       } catch (err) {
         console.error('Error fetching events:', err);
         setError('Failed to load events. Please try again later.');
@@ -26,7 +59,7 @@ const Events = () => {
     };
 
     fetchEvents();
-  }, []);
+  }, [currentUser]);
 
   // Categories for filtering
   const categories = ['all', 'today', 'upcoming', 'past'];

@@ -8,16 +8,19 @@ const NoticeCard = ({ notice }) => {
   const { currentUser } = useAuth();
   const [isSaved, setIsSaved] = useState(notice.isSaved || false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSaveNotice = async () => {
     if (!currentUser) return;
     
     try {
       setIsLoading(true);
+      setError(null);
       await saveNotice(notice._id);
       setIsSaved(true);
     } catch (err) {
       console.error('Error saving notice:', err);
+      setError(err.message || "Failed to save notice");
     } finally {
       setIsLoading(false);
     }
@@ -64,6 +67,12 @@ const NoticeCard = ({ notice }) => {
                 ? 'Due today!' 
                 : `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining`}
             </span>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mt-2 text-sm text-red-600">
+            {error}
           </div>
         )}
       </CardContent>

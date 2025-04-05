@@ -3,38 +3,90 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from './ui/button';
 import { registerForEvent, bookmarkEvent } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const EventCard = ({ event }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [isRegistered, setIsRegistered] = useState(event.isRegistered || false);
   const [isBookmarked, setIsBookmarked] = useState(event.isBookmarked || false);
   const [isLoading, setIsLoading] = useState(false);
+  const [actionType, setActionType] = useState(null);
+  const [error, setError] = useState(null);
 
   const handleRegister = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    
+    // Check if user has a valid token
+    if (!currentUser.accessToken) {
+      setError('Authentication token missing. Please log in again.');
+      navigate('/login');
+      return;
+    }
     
     try {
       setIsLoading(true);
-      await registerForEvent(event._id);
+      setActionType('register');
+      setError(null);
+      const response = await registerForEvent(event._id);
       setIsRegistered(true);
+      console.log('Registration successful:', response);
     } catch (err) {
       console.error('Error registering for event:', err);
+      
+      // Handle specific error types
+      if (err.message?.includes('Unauthorized') || err.message?.includes('JWT')) {
+        setError('Your session has expired. Please log in again to register.');
+        // Optional: Redirect to login
+        // logout();
+        // navigate('/login');
+      } else {
+        setError(err.message || "Failed to register for event");
+      }
     } finally {
       setIsLoading(false);
+      setActionType(null);
     }
   };
 
   const handleBookmark = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    
+    // Check if user has a valid token
+    if (!currentUser.accessToken) {
+      setError('Authentication token missing. Please log in again.');
+      navigate('/login');
+      return;
+    }
     
     try {
       setIsLoading(true);
-      await bookmarkEvent(event._id);
+      setActionType('bookmark');
+      setError(null);
+      const response = await bookmarkEvent(event._id);
       setIsBookmarked(true);
+      console.log('Bookmark successful:', response);
     } catch (err) {
       console.error('Error bookmarking event:', err);
+      
+      // Handle specific error types
+      if (err.message?.includes('Unauthorized') || err.message?.includes('JWT')) {
+        setError('Your session has expired. Please log in again to bookmark.');
+        // Optional: Redirect to login
+        // logout();
+        // navigate('/login');
+      } else {
+        setError(err.message || "Failed to bookmark event");
+      }
     } finally {
       setIsLoading(false);
+      setActionType(null);
     }
   };
 
@@ -102,9 +154,15 @@ const EventCard = ({ event }) => {
             </div>
           )}
         </div>
+        
+        {error && (
+          <div className="mt-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
       </CardContent>
       <CardFooter className="flex justify-between pt-2 border-t">
-        {currentUser && isUpcoming && (
+        {isUpcoming && (
           <Button 
             variant={isRegistered ? "default" : "outline"}
             size="sm"
@@ -112,20 +170,18 @@ const EventCard = ({ event }) => {
             disabled={isLoading || isRegistered}
             className="flex-1 mr-2"
           >
-            {isLoading ? 'Processing...' : isRegistered ? 'Registered' : 'Register'}
+            {actionType === 'register' && isLoading ? 'Processing...' : isRegistered ? 'Registered' : 'Register'}
           </Button>
         )}
-        {currentUser && (
-          <Button 
-            variant={isBookmarked ? "secondary" : "outline"}
-            size="sm"
-            onClick={handleBookmark}
-            disabled={isLoading || isBookmarked}
-            className={isUpcoming ? "flex-1" : "w-full"}
-          >
-            {isBookmarked ? 'Bookmarked' : 'Bookmark'}
-          </Button>
-        )}
+        <Button 
+          variant={isBookmarked ? "secondary" : "outline"}
+          size="sm"
+          onClick={handleBookmark}
+          disabled={isLoading || isBookmarked}
+          className={isUpcoming ? "flex-1" : "w-full"}
+        >
+          {actionType === 'bookmark' && isLoading ? 'Saving...' : isBookmarked ? 'Bookmarked' : 'Bookmark'}
+        </Button>
       </CardFooter>
     </Card>
   );

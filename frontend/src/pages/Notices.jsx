@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { getAllNotices } from '../lib/api';
+import { getAllNotices, getUserNotices } from '../lib/api';
 import NoticeCard from '../components/NoticeCard';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../lib/AuthContext';
 
 const Notices = () => {
+  const { currentUser } = useAuth();
   const [notices, setNotices] = useState([]);
+  const [userNotices, setUserNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,8 +18,32 @@ const Notices = () => {
     const fetchNotices = async () => {
       try {
         setLoading(true);
-        const data = await getAllNotices();
-        setNotices(data);
+        const [allNotices, userNoticesData] = await Promise.all([
+          getAllNotices(),
+          currentUser ? getUserNotices() : []
+        ]);
+        
+        // Get arrays or default to empty arrays if undefined
+        const noticesArray = Array.isArray(allNotices) ? allNotices : [];
+        const userNoticesArray = Array.isArray(userNoticesData) ? userNoticesData : [];
+        
+        // Store user notices for reference
+        setUserNotices(userNoticesArray);
+        
+        // Mark notices the user has already saved
+        const processedNotices = noticesArray.map(notice => {
+          // Check if user has saved this notice
+          const isSaved = userNoticesArray.some(
+            userNotice => userNotice._id === notice._id
+          );
+          
+          return {
+            ...notice,
+            isSaved
+          };
+        });
+        
+        setNotices(processedNotices);
       } catch (err) {
         console.error('Error fetching notices:', err);
         setError('Failed to load notices. Please try again later.');
@@ -26,7 +53,7 @@ const Notices = () => {
     };
 
     fetchNotices();
-  }, []);
+  }, [currentUser]);
 
   // Categories for filtering
   const categories = ['all', 'academic', 'announcement', 'workshop', 'meeting', 'deadline', 'event'];

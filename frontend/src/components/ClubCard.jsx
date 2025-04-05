@@ -10,16 +10,19 @@ const ClubCard = ({ club }) => {
   const [isRequested, setIsRequested] = useState(club.membershipRequested || false);
   const [isMember, setIsMember] = useState(club.isMember || false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleRequestMembership = async () => {
     if (!currentUser) return;
     
     try {
       setIsLoading(true);
+      setError(null);
       await requestClubMembership(club._id);
       setIsRequested(true);
     } catch (err) {
       console.error('Error requesting club membership:', err);
+      setError(err.message || "Failed to request membership");
     } finally {
       setIsLoading(false);
     }
@@ -74,6 +77,12 @@ const ClubCard = ({ club }) => {
             </p>
           </div>
         )}
+        
+        {error && (
+          <div className="mt-2 text-sm text-red-600">
+            {error}
+          </div>
+        )}
       </CardContent>
       <CardFooter className="pt-2 border-t">
         {currentUser && !isMember && (
@@ -85,7 +94,6 @@ const ClubCard = ({ club }) => {
             disabled={isLoading || isRequested || isMember}
           >
             {isLoading ? 'Processing...' : 
-             isMember ? 'Member' : 
              isRequested ? 'Membership Requested' : 
              'Join Club'}
           </Button>
@@ -97,7 +105,7 @@ const ClubCard = ({ club }) => {
             className="w-full"
             disabled={true}
           >
-            Member
+            Joined
           </Button>
         )}
       </CardFooter>

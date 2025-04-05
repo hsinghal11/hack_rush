@@ -46,19 +46,40 @@ const Login = () => {
       
       console.log('Submitting login form with:', { email, password: '********' });
       const response = await login(email, password);
-      console.log('Login successful, received user data:', { 
-        ...response, 
-        accessToken: response.accessToken ? `${response.accessToken.substring(0, 15)}...` : null 
+      
+      // Debug the response structure
+      console.log('Login successful, response structure:', JSON.stringify(response, null, 2));
+      
+      if (!response.user || !response.accessToken) {
+        console.error('Invalid response format:', response);
+        throw new Error('Login successful but received invalid data from server');
+      }
+      
+      // Create user object with all necessary data
+      const userData = {
+        ...response.user,
+        accessToken: response.accessToken
+      };
+      
+      if (response.refreshToken) {
+        userData.refreshToken = response.refreshToken;
+      }
+      
+      console.log('Storing user data:', {
+        ...userData,
+        accessToken: userData.accessToken ? `${userData.accessToken.substring(0, 15)}...` : null
       });
       
       // Store user data in auth context
-      authLogin(response);
+      authLogin(userData);
       
       // Redirect based on user role
-      console.log('Redirecting based on role:', response.role);
-      if (response.role === 'admin') {
+      const role = userData.role;
+      console.log('Redirecting based on role:', role);
+      
+      if (role === 'admin') {
         navigate('/admin-dashboard');
-      } else if (response.role === 'coordinator' || response.role === 'club-coordinator') {
+      } else if (role === 'coordinator' || role === 'club-coordinator') {
         navigate('/coordinator-dashboard');
       } else {
         // Default for 'student' or any other role

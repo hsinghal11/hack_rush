@@ -13,19 +13,32 @@ const api = axios.create({
 // Add a request interceptor to include auth token
 api.interceptors.request.use(
   (config) => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    
-    // Get the token either from the top level or from user.accessToken
-    const token = user.accessToken;
-    
-    if (token) {
-      console.log('Adding auth token to request');
-      config.headers.Authorization = `Bearer ${token}`;
-      
-      // Special handling for test token
-      if (token === 'test-token') {
-        console.log('Using test token in request');
+    try {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        console.log('No user data found in localStorage');
+        return config;
       }
+      
+      const user = JSON.parse(userStr);
+      
+      // Get the token from user object
+      const token = user.accessToken;
+      
+      if (token) {
+        // Make sure the token is properly formatted
+        if (typeof token === 'string' && token.trim() !== '') {
+          console.log('Adding auth token to request:', `${token.substring(0, 15)}...`);
+          // Use consistent header format
+          config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          console.warn('Invalid token format in user object:', typeof token);
+        }
+      } else {
+        console.warn('No token found in user object');
+      }
+    } catch (error) {
+      console.error('Error adding auth token to request:', error);
     }
     return config;
   },
@@ -36,12 +49,31 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Handle authentication errors
-    if (error.response && error.response.status === 401) {
-      console.log('Authentication error detected, clearing local storage');
-      localStorage.removeItem('user');
+    // Log detailed error information
+    if (error.response) {
+      console.error('API Error:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        url: error.config.url,
+        method: error.config.method
+      });
+      
+      // Handle authentication errors
+      if (error.response.status === 401) {
+        console.log('Authentication error detected:', error.response.data);
+        // Only clear storage if token is explicitly invalid/expired
+        if (error.response.data.message?.includes('Invalid access token') || 
+            error.response.data.message?.includes('expired')) {
+          console.log('Clearing local storage due to invalid token');
+          localStorage.removeItem('user');
+        }
+      }
+    } else {
+      console.error('API Error (no response):', error.message);
     }
-    return Promise.reject(error);
+    
+    return Promise.reject(error.response?.data || error);
   }
 );
 
@@ -52,14 +84,15 @@ export const login = async (email, password) => {
     const response = await api.post('/users/login', { email, password });
     console.log('Login response:', response.data);
     
-    // Extract and restructure the data to match what our app expects
+    // Extract data from the response
     const { success, user, accessToken, refreshToken } = response.data;
     
-    if (success && user) {
-      // Format the response to match what our application expects
+    if (success && user && accessToken) {
+      // Return properly formatted data with the token at root level
       return {
-        ...user,
-        accessToken: accessToken // Make sure accessToken is available at the top level
+        user,
+        accessToken,
+        refreshToken
       };
     }
     

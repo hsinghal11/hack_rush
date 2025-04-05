@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { getAllClubs } from '../lib/api';
+import { getAllClubs, getUserClubs } from '../lib/api';
 import ClubCard from '../components/ClubCard';
 import { Input } from '../components/ui/input';
+import { useAuth } from '../lib/AuthContext';
 
 const Clubs = () => {
+  const { currentUser } = useAuth();
   const [clubs, setClubs] = useState([]);
+  const [userClubs, setUserClubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,8 +16,38 @@ const Clubs = () => {
     const fetchClubs = async () => {
       try {
         setLoading(true);
-        const data = await getAllClubs();
-        setClubs(data);
+        const [allClubs, userClubsData] = await Promise.all([
+          getAllClubs(),
+          currentUser ? getUserClubs() : []
+        ]);
+        
+        // Get arrays or default to empty arrays if undefined
+        const clubsArray = Array.isArray(allClubs) ? allClubs : [];
+        const userClubsArray = Array.isArray(userClubsData) ? userClubsData : [];
+        
+        // Store user clubs for reference
+        setUserClubs(userClubsArray);
+        
+        // Mark clubs the user has already joined or requested to join
+        const processedClubs = clubsArray.map(club => {
+          // Check if user is a member of this club
+          const isMember = userClubsArray.some(
+            userClub => userClub._id === club._id
+          );
+          
+          // Check if user has a pending request for this club
+          const membershipRequested = club.membershipRequests?.some(
+            request => request.user?._id === currentUser?._id && request.status === 'pending'
+          ) || false;
+          
+          return {
+            ...club,
+            isMember,
+            membershipRequested
+          };
+        });
+        
+        setClubs(processedClubs);
       } catch (err) {
         console.error('Error fetching clubs:', err);
         setError('Failed to load clubs. Please try again later.');
@@ -24,7 +57,7 @@ const Clubs = () => {
     };
 
     fetchClubs();
-  }, []);
+  }, [currentUser]);
 
   // Filter clubs based on search term
   const filteredClubs = clubs.filter(club => 
