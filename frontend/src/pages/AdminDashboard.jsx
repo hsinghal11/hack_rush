@@ -5,7 +5,10 @@ import {
   getAdminPendingEvents, 
   approveEvent, 
   createClub,
-  getAllClubs
+  getAllClubs,
+  updateUserRole,
+  createEvent,
+  createNotice
 } from '../lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -13,6 +16,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Link } from 'react-router-dom';
+import { Textarea } from '../components/ui/textarea';
 
 const AdminDashboard = () => {
   console.log('Rendering AdminDashboard component');
@@ -29,6 +33,30 @@ const AdminDashboard = () => {
   const [clubName, setClubName] = useState('');
   const [clubDescription, setClubDescription] = useState('');
   const [selectedCoordinator, setSelectedCoordinator] = useState('');
+
+  // State for editing user
+  const [isEditingUser, setIsEditingUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [newUserRole, setNewUserRole] = useState('');
+  
+  // State for creating an event
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [eventData, setEventData] = useState({
+    name: '',
+    description: '',
+    date: '',
+    venue: '',
+    club: '',
+    category: 'general'
+  });
+
+  // State for creating a notice
+  const [isCreatingNotice, setIsCreatingNotice] = useState(false);
+  const [noticeData, setNoticeData] = useState({
+    title: '',
+    content: '',
+    category: 'general'
+  });
 
   // Get all data for admin dashboard
   useEffect(() => {
@@ -111,12 +139,27 @@ const AdminDashboard = () => {
     e.preventDefault();
     
     try {
+      if (!clubName || !clubDescription || !selectedCoordinator) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      
+      // Find the selected user to get their email
+      const selectedUser = users.find(user => user._id === selectedCoordinator);
+      
+      if (!selectedUser) {
+        alert('Selected coordinator not found in users list');
+        return;
+      }
+      
       const clubData = {
         name: clubName,
         description: clubDescription,
-        coordinatorId: selectedCoordinator
+        coordinatorId: selectedCoordinator,
+        coordinatorEmail: selectedUser.email // Include email as well
       };
       
+      console.log('Creating club with data:', clubData);
       await createClub(clubData);
       alert('Club created successfully!');
       
@@ -130,7 +173,111 @@ const AdminDashboard = () => {
       setClubs(updatedClubs);
     } catch (err) {
       console.error('Error creating club:', err);
-      alert('Failed to create club. Please try again.');
+      alert('Failed to create club: ' + (err.message || 'Please try again.'));
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setNewUserRole(user.role);
+    setIsEditingUser(true);
+  };
+
+  const handleSaveUserEdit = async () => {
+    try {
+      if (!editingUser || !newUserRole) {
+        alert('Please select a role for the user');
+        return;
+      }
+
+      await updateUserRole(editingUser._id, newUserRole);
+      
+      // Update the users list
+      const updatedUsers = await getAllUsers();
+      setUsers(updatedUsers);
+      
+      // Close the dialog
+      setIsEditingUser(false);
+      setEditingUser(null);
+      setNewUserRole('');
+      
+      alert('User role updated successfully');
+    } catch (err) {
+      console.error('Error updating user role:', err);
+      alert('Failed to update user role: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleEventDataChange = (e) => {
+    const { name, value } = e.target;
+    setEventData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleNoticeDataChange = (e) => {
+    const { name, value } = e.target;
+    setNoticeData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCreateEventSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      if (!eventData.name || !eventData.description || !eventData.date || !eventData.venue) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      
+      console.log('Creating event with data:', eventData);
+      await createEvent(eventData);
+      alert('Event created successfully!');
+      
+      // Reset form
+      setEventData({
+        name: '',
+        description: '',
+        date: '',
+        venue: '',
+        club: '',
+        category: 'general'
+      });
+      
+      // Close dialog
+      setIsCreatingEvent(false);
+      
+      // Refresh events data
+      const updatedEvents = await getAdminPendingEvents();
+      setPendingEvents(updatedEvents);
+    } catch (err) {
+      console.error('Error creating event:', err);
+      alert('Failed to create event: ' + (err.message || 'Please try again.'));
+    }
+  };
+  
+  const handleCreateNoticeSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      if (!noticeData.title || !noticeData.content) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      
+      console.log('Creating notice with data:', noticeData);
+      await createNotice(noticeData);
+      alert('Notice created successfully!');
+      
+      // Reset form
+      setNoticeData({
+        title: '',
+        content: '',
+        category: 'general'
+      });
+      
+      // Close dialog
+      setIsCreatingNotice(false);
+    } catch (err) {
+      console.error('Error creating notice:', err);
+      alert('Failed to create notice: ' + (err.message || 'Please try again.'));
     }
   };
 
@@ -153,6 +300,169 @@ const AdminDashboard = () => {
             <Link to="/admin-notifications">
               <Button variant="outline" className="mr-2">Manage Notifications</Button>
             </Link>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="mr-2">Create Event</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Event</DialogTitle>
+                  <DialogDescription>
+                    Fill in the details for the new event.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateEventSubmit}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="eventName" className="text-right">Name</label>
+                      <Input 
+                        id="eventName" 
+                        name="name"
+                        placeholder="Event name" 
+                        className="col-span-3"
+                        value={eventData.name}
+                        onChange={handleEventDataChange}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="eventDescription" className="text-right">Description</label>
+                      <Textarea 
+                        id="eventDescription" 
+                        name="description"
+                        placeholder="Event description" 
+                        className="col-span-3"
+                        value={eventData.description}
+                        onChange={handleEventDataChange}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="eventDate" className="text-right">Date</label>
+                      <Input 
+                        id="eventDate" 
+                        name="date"
+                        type="datetime-local" 
+                        className="col-span-3"
+                        value={eventData.date}
+                        onChange={handleEventDataChange}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="eventVenue" className="text-right">Venue</label>
+                      <Input 
+                        id="eventVenue" 
+                        name="venue"
+                        placeholder="Event venue" 
+                        className="col-span-3"
+                        value={eventData.venue}
+                        onChange={handleEventDataChange}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="eventCategory" className="text-right">Category</label>
+                      <select
+                        id="eventCategory"
+                        name="category"
+                        className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        value={eventData.category}
+                        onChange={handleEventDataChange}
+                        required
+                      >
+                        <option value="general">General</option>
+                        <option value="technical">Technical</option>
+                        <option value="cultural">Cultural</option>
+                        <option value="sports">Sports</option>
+                        <option value="academic">Academic</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="eventClub" className="text-right">Club (Optional)</label>
+                      <select
+                        id="eventClub"
+                        name="club"
+                        className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        value={eventData.club}
+                        onChange={handleEventDataChange}
+                      >
+                        <option value="">Select a club (optional)</option>
+                        {clubs && Array.isArray(clubs) && clubs.map(club => (
+                          <option key={club._id} value={club._id}>
+                            {club.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit">Create Event</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="mr-2">Create Notice</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Notice</DialogTitle>
+                  <DialogDescription>
+                    Fill in the details for the new notice.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateNoticeSubmit}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="noticeTitle" className="text-right">Title</label>
+                      <Input 
+                        id="noticeTitle" 
+                        name="title"
+                        placeholder="Notice title" 
+                        className="col-span-3"
+                        value={noticeData.title}
+                        onChange={handleNoticeDataChange}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="noticeContent" className="text-right">Content</label>
+                      <Textarea 
+                        id="noticeContent" 
+                        name="content"
+                        placeholder="Notice content" 
+                        className="col-span-3"
+                        value={noticeData.content}
+                        onChange={handleNoticeDataChange}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="noticeCategory" className="text-right">Category</label>
+                      <select
+                        id="noticeCategory"
+                        name="category"
+                        className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        value={noticeData.category}
+                        onChange={handleNoticeDataChange}
+                        required
+                      >
+                        <option value="general">General</option>
+                        <option value="academic">Academic</option>
+                        <option value="fee">Fee</option>
+                        <option value="club">Club</option>
+                        <option value="campus">Campus</option>
+                      </select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit">Create Notice</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
             <Dialog>
               <DialogTrigger asChild>
                 <Button>Create Club</Button>
@@ -204,11 +514,11 @@ const AdminDashboard = () => {
                         required
                       >
                         <option value="">Select a coordinator</option>
-                        {users && users.filter && users
-                          .filter(user => user && user.role === 'user')
+                        {users && Array.isArray(users) && users
+                          // Show all users for now, don't filter by role
                           .map(user => (
                             <option key={user._id} value={user._id}>
-                              {user.name} ({user.email})
+                              {user.name} ({user.email}) - {user.role || 'Unknown role'}
                             </option>
                           ))}
                       </select>
@@ -362,7 +672,7 @@ const AdminDashboard = () => {
                                 <span className={`px-2 py-1 rounded-full text-xs ${
                                   user.role === 'admin' 
                                     ? 'bg-purple-100 text-purple-800' 
-                                    : user.role === 'coordinator' 
+                                    : user.role === 'coordinator' || user.role === 'club-coordinator'
                                     ? 'bg-blue-100 text-blue-800' 
                                     : 'bg-green-100 text-green-800'
                                 }`}>
@@ -370,7 +680,7 @@ const AdminDashboard = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right">
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                                   Edit
                                 </Button>
                               </td>
@@ -433,6 +743,42 @@ const AdminDashboard = () => {
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* User Edit Dialog */}
+          {isEditingUser && (
+            <Dialog open={isEditingUser} onOpenChange={setIsEditingUser}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Edit User Role</DialogTitle>
+                  <DialogDescription>
+                    Change the role of {editingUser?.name}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="userRole" className="text-right">
+                      Role
+                    </label>
+                    <select
+                      id="userRole"
+                      className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value)}
+                      required
+                    >
+                      <option value="">Select a role</option>
+                      <option value="user">Student</option>
+                      <option value="coordinator">Club Coordinator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" onClick={handleSaveUserEdit}>Save Changes</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           </>
         )}
       </div>

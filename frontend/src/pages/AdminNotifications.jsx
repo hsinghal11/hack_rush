@@ -34,13 +34,19 @@ const AdminNotifications = () => {
     if (isLoading) return;
 
     try {
+      console.log('Sending notification with data:', formData);
       setIsLoading(true);
+      
+      // Extract data to ensure proper format
+      const { title, body, icon, url } = formData;
+      
+      // Call the API with the right format
       await sendPushNotification(
-        formData.title,
-        formData.body,
+        title,
+        body,
         {
-          icon: formData.icon,
-          url: formData.url
+          icon: icon || '/favicon.svg',
+          url: url || '/'
         }
       );
       
@@ -66,7 +72,7 @@ const AdminNotifications = () => {
       
       <Card>
         <CardHeader>
-          <CardTitle>Send Test Notification</CardTitle>
+          <CardTitle>Send Notification</CardTitle>
           <CardDescription>
             Send a push notification to all subscribed users
           </CardDescription>

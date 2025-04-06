@@ -26,23 +26,8 @@ const Login = () => {
       setError('');
       setLoading(true);
       
-      // Special handling for test credentials
-      if (email === 'sample_student@gmail.com' && password === '123456789') {
-        console.log('Using test credentials');
-        // Mock a successful response for test credentials
-        const mockResponse = {
-          _id: 'test-user-id',
-          name: 'Test Student',
-          email: 'sample_student@gmail.com',
-          role: 'student',
-          accessToken: 'test-token'
-        };
-        
-        // Store user data in auth context
-        authLogin(mockResponse);
-        navigate('/student-dashboard');
-        return;
-      }
+      // Remove special handling for test credentials as it's causing issues
+      // Instead, always use the real API login
       
       console.log('Submitting login form with:', { email, password: '********' });
       const response = await login(email, password);
@@ -50,15 +35,22 @@ const Login = () => {
       // Debug the response structure
       console.log('Login successful, response structure:', JSON.stringify(response, null, 2));
       
-      if (!response.user || !response.accessToken) {
-        console.error('Invalid response format:', response);
-        throw new Error('Login successful but received invalid data from server');
+      if (!response.accessToken) {
+        console.error('Invalid response format - missing token:', response);
+        throw new Error('Login successful but no access token received');
+      }
+      
+      // Make sure user data exists
+      if (!response.user) {
+        console.error('Invalid response format - missing user:', response);
+        throw new Error('Login successful but no user data received');
       }
       
       // Create user object with all necessary data
+      // Make sure to override any null accessToken in the user object
       const userData = {
         ...response.user,
-        accessToken: response.accessToken
+        accessToken: response.accessToken // Override with the token from the response root
       };
       
       if (response.refreshToken) {
@@ -66,12 +58,20 @@ const Login = () => {
       }
       
       console.log('Storing user data:', {
-        ...userData,
-        accessToken: userData.accessToken ? `${userData.accessToken.substring(0, 15)}...` : null
+        id: userData._id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        hasToken: !!userData.accessToken,
+        tokenLength: userData.accessToken ? userData.accessToken.length : 0
       });
       
       // Store user data in auth context
-      authLogin(userData);
+      const loginSuccess = authLogin(userData);
+      
+      if (!loginSuccess) {
+        throw new Error('Invalid token format. Please contact support.');
+      }
       
       // Redirect based on user role
       const role = userData.role;

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'https://hack-rush.onrender.com/api';
 
 // Create an axios instance with baseURL
 const api = axios.create({
@@ -20,7 +20,14 @@ api.interceptors.request.use(
         return config;
       }
       
-      const user = JSON.parse(userStr);
+      let user;
+      try {
+        user = JSON.parse(userStr);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        localStorage.removeItem('user');
+        return config;
+      }
       
       // Get the token from user object
       const token = user.accessToken;
@@ -28,17 +35,30 @@ api.interceptors.request.use(
       if (token) {
         // Make sure the token is properly formatted
         if (typeof token === 'string' && token.trim() !== '') {
-          console.log('Adding auth token to request:', `${token.substring(0, 15)}...`);
-          // Use consistent header format
-          config.headers.Authorization = `Bearer ${token}`;
+          // Check if token looks like a JWT (has two dots)
+          if (!token.includes('.') || token.split('.').length !== 3) {
+            console.error('Token does not appear to be a valid JWT, clearing user data', token);
+            localStorage.removeItem('user');
+            return config;
+          }
+          
+          // Remove any "Bearer " prefix if it already exists
+          const cleanToken = token.startsWith('Bearer ') ? token.substring(7).trim() : token.trim();
+          
+          console.log('Adding auth token to request, length:', cleanToken.length);
+          // Use consistent header format with Bearer prefix
+          config.headers.Authorization = `Bearer ${cleanToken}`;
         } else {
           console.warn('Invalid token format in user object:', typeof token);
+          localStorage.removeItem('user'); // Clear invalid token
         }
       } else {
         console.warn('No token found in user object');
       }
     } catch (error) {
       console.error('Error adding auth token to request:', error);
+      // Clear broken user data
+      localStorage.removeItem('user');
     }
     return config;
   },
@@ -137,10 +157,22 @@ export const getUserClubs = async () => {
 
 export const requestClubMembership = async (clubId) => {
   try {
+    console.log(`Requesting membership for club: ${clubId}`);
     const response = await api.post(`/clubs/${clubId}/request-membership`);
+    console.log('Club membership request response:', response.data);
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : error;
+    console.error('Club membership request failed:', error.response?.data || error.message);
+    
+    // Handle token expiration
+    if (error.response?.status === 401 || 
+        error.message?.includes('JWT') || 
+        error.message?.includes('token')) {
+      console.log('Authentication error detected, clearing user data');
+      localStorage.removeItem('user');
+    }
+    
+    throw error.response?.data || { message: `Failed to request club membership: ${error.message}` };
   }
 };
 
@@ -408,12 +440,41 @@ export const getAllUsers = async () => {
 
 export const createClub = async (clubData) => {
   try {
+    console.log('Creating club with data:', clubData);
     const response = await api.post('/admin/clubs/create', clubData);
+    console.log('Create club response:', response.data);
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : error;
+    console.error('Error creating club:', error.response?.data || error.message);
+    throw error.response?.data || { message: `Failed to create club: ${error.message}` };
   }
 };
+
+export const updateUserRole = async (userId, role) => {
+  try {
+    console.log(`Updating user ${userId} role to ${role}`);
+    // Fix the endpoint and payload to match backend expectations
+    const response = await api.post(`/admin/users/role`, { 
+      userId, 
+      role: convertRole(role) 
+    });
+    console.log('User role update response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating user role:', error.response?.data || error.message);
+    throw error.response?.data || { message: `Failed to update user role: ${error.message}` };
+  }
+};
+
+// Helper function to convert frontend role names to backend role names
+function convertRole(frontendRole) {
+  const roleMap = {
+    'user': 'student',
+    'coordinator': 'club-coordinator',
+    'admin': 'admin'
+  };
+  return roleMap[frontendRole] || frontendRole;
+}
 
 export const updateClub = async (clubId, clubData) => {
   try {

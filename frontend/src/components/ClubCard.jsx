@@ -1,28 +1,83 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { requestClubMembership } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import { Avatar } from './ui/avatar';
+import { useNavigate } from 'react-router-dom';
 
 const ClubCard = ({ club }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, logout, ensureValidTokenFormat } = useAuth();
+  const navigate = useNavigate();
   const [isRequested, setIsRequested] = useState(club.membershipRequested || false);
   const [isMember, setIsMember] = useState(club.isMember || false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Ensure user token is set correctly
+  useEffect(() => {
+    // Log current user token for debugging
+    if (currentUser) {
+      console.log('Current user in ClubCard:', {
+        name: currentUser.name,
+        email: currentUser.email,
+        hasToken: !!currentUser.accessToken,
+        tokenLength: currentUser.accessToken ? currentUser.accessToken.length : 0
+      });
+    }
+  }, [currentUser]);
 
   const handleRequestMembership = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    
+    // Log token status
+    console.log('Token debugging in ClubCard:', {
+      hasToken: !!currentUser.accessToken,
+      tokenType: typeof currentUser.accessToken,
+      tokenLength: currentUser.accessToken ? currentUser.accessToken.length : 0,
+      isBearer: currentUser.accessToken ? currentUser.accessToken.startsWith('Bearer ') : false
+    });
+    
+    // Check for valid token
+    if (!currentUser.accessToken) {
+      console.error('Missing access token');
+      setError('Your login session appears to be invalid. Please log in again.');
+      
+      // Force user to re-login to get a valid token
+      setTimeout(() => {
+        logout();
+        navigate('/login');
+      }, 1500);
+      return;
+    }
     
     try {
       setIsLoading(true);
       setError(null);
+      console.log('Requesting membership with clubId:', club._id);
       await requestClubMembership(club._id);
       setIsRequested(true);
     } catch (err) {
       console.error('Error requesting club membership:', err);
-      setError(err.message || "Failed to request membership");
+      
+      // Handle token issues
+      if (err.message?.includes('JWT') || 
+          err.message?.includes('token') || 
+          err.message?.includes('Unauthorized') ||
+          err.message?.includes('auth')) {
+        setError('Your session has expired. Please log in again.');
+        
+        // Force user to re-login
+        setTimeout(() => {
+          logout();
+          navigate('/login');
+        }, 1500);
+      } else {
+        setError(err.message || "Failed to request membership");
+      }
     } finally {
       setIsLoading(false);
     }
