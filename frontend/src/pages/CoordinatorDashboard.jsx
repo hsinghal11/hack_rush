@@ -17,6 +17,8 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { useLocation } from 'react-router-dom';
+import { Calendar } from '../components/Calendar';
+import { createGoogleCalendarEvent, downloadICalEvent } from '../utils/calendarUtils';
 
 const CoordinatorDashboard = () => {
   const { currentUser } = useAuth();
@@ -460,7 +462,7 @@ const CoordinatorDashboard = () => {
               <TabsTrigger value="members">Members</TabsTrigger>
               <TabsTrigger value="requests">Membership Requests</TabsTrigger>
               <TabsTrigger value="events">Events</TabsTrigger>
-              {/* <TabsTrigger value="notices">Notices</TabsTrigger> */}
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
             </TabsList>
             
             <TabsContent value="members">
@@ -624,68 +626,64 @@ const CoordinatorDashboard = () => {
               </Card>
             </TabsContent>
             
-            <TabsContent value="notices">
+            <TabsContent value="calendar">
               <Card>
                 <CardHeader>
-                  <CardTitle>Club Notices</CardTitle>
-                  <CardDescription>View notices for your club</CardDescription>
+                  <CardTitle>Event Calendar</CardTitle>
+                  <CardDescription>View and manage upcoming events</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="mb-4">
-                    <p className="text-sm text-gray-500">
-                      Only admins can create or edit notices. Please contact an administrator if you need to post a notice.
-                    </p>
+                    <Button 
+                      onClick={() => window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(club.name + ' Events')}&dates=20240101/20241231`, '_blank')}
+                      variant="outline"
+                      className="mb-4"
+                    >
+                      <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19.5 22H4.5C3.12 22 2 20.88 2 19.5V6.5C2 5.12 3.12 4 4.5 4H7V2H9V4H15V2H17V4H19.5C20.88 4 22 5.12 22 6.5V19.5C22 20.88 20.88 22 19.5 22ZM4.5 9.5H19.5V6.5H4.5V9.5ZM4.5 11.5V19.5H19.5V11.5H4.5Z" />
+                      </svg>
+                      Sync with Google Calendar
+                    </Button>
                   </div>
-                  {allNotices && allNotices.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <div className="mb-4">
-                        <div className="flex gap-2 items-center text-sm text-gray-500 mb-1">
-                          <span>Status Legend:</span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">Approved</span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">Pending</span>
-                          <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">Rejected</span>
-                        </div>
-                      </div>
-
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-3 px-4">Title</th>
-                            <th className="text-left py-3 px-4">Description</th>
-                            <th className="text-left py-3 px-4">Due Date</th>
-                            <th className="text-left py-3 px-4">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allNotices.map((notice) => (
-                            <tr key={notice._id} className="border-b hover:bg-gray-50">
-                              <td className="py-3 px-4">{notice.title}</td>
-                              <td className="py-3 px-4">{notice.description || notice.content}</td>
-                              <td className="py-3 px-4">{notice.dueDate ? new Date(notice.dueDate).toLocaleDateString() : 'No due date'}</td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-1 rounded-full text-xs ${
-                                  notice.status === 'approved' ? 'bg-green-100 text-green-800' : 
-                                  notice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                  'bg-red-100 text-red-800'
-                                }`}>
-                                  {notice.status}
-                                </span>
-                                {notice.rejectionReason && (
-                                  <div className="mt-1 text-xs text-red-600">
-                                    Reason: {notice.rejectionReason}
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  
+                  <Calendar events={allEvents} />
+                  
+                  <div className="mt-6">
+                    <h3 className="font-semibold text-lg mb-3">Upcoming Events</h3>
+                    <div className="space-y-3">
+                      {allEvents
+                        .filter(event => new Date(event.date) >= new Date() && event.status === 'approved')
+                        .sort((a, b) => new Date(a.date) - new Date(b.date))
+                        .slice(0, 5)
+                        .map(event => (
+                          <div key={event._id} className="flex items-center p-3 border rounded-md">
+                            <div className="bg-primary/10 text-primary p-2 rounded-md mr-3 text-center min-w-16">
+                              <div className="text-xs font-semibold">{new Date(event.date).toLocaleString('default', { month: 'short' })}</div>
+                              <div className="text-xl font-bold">{new Date(event.date).getDate()}</div>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold">{event.name}</h4>
+                              <p className="text-sm text-muted-foreground">{event.location} • {event.time || '00:00'}</p>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="ml-auto"
+                              onClick={() => {
+                                window.open(createGoogleCalendarEvent(event), '_blank');
+                              }}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M12 8V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M8 12H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              <span className="ml-1">Add to Google Calendar</span>
+                            </Button>
+                          </div>
+                        ))}
                     </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">No notices for this club yet</p>
-                    </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
