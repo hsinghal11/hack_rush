@@ -33,31 +33,31 @@ const ClubCard = ({ club }) => {
       return;
     }
     
-    // Log token status
-    console.log('Token debugging in ClubCard:', {
-      hasToken: !!currentUser.accessToken,
-      tokenType: typeof currentUser.accessToken,
-      tokenLength: currentUser.accessToken ? currentUser.accessToken.length : 0,
-      isBearer: currentUser.accessToken ? currentUser.accessToken.startsWith('Bearer ') : false
-    });
-    
-    // Check for valid token
-    if (!currentUser.accessToken) {
-      console.error('Missing access token');
-      setError('Your login session appears to be invalid. Please log in again.');
-      
-      // Force user to re-login to get a valid token
-      setTimeout(() => {
-        logout();
-        navigate('/login');
-      }, 1500);
-      return;
-    }
-    
     try {
+      // Log token status for debugging
+      console.log('Token info:', {
+        hasToken: !!currentUser.accessToken,
+        tokenType: typeof currentUser.accessToken,
+        tokenLength: currentUser.accessToken ? currentUser.accessToken.length : 0
+      });
+      
       setIsLoading(true);
       setError(null);
       console.log('Requesting membership with clubId:', club._id);
+      
+      // Get a refreshed user from localStorage to ensure token is current
+      try {
+        const storedUserStr = localStorage.getItem('user');
+        if (storedUserStr) {
+          const storedUser = JSON.parse(storedUserStr);
+          if (storedUser && storedUser.accessToken) {
+            console.log('Using refreshed token from localStorage');
+          }
+        }
+      } catch (e) {
+        console.error('Error refreshing token from localStorage:', e);
+      }
+      
       await requestClubMembership(club._id);
       setIsRequested(true);
     } catch (err) {
@@ -68,6 +68,7 @@ const ClubCard = ({ club }) => {
           err.message?.includes('token') || 
           err.message?.includes('Unauthorized') ||
           err.message?.includes('auth')) {
+            
         setError('Your session has expired. Please log in again.');
         
         // Force user to re-login

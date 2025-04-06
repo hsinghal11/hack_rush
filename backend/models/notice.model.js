@@ -10,6 +10,7 @@ const noticeSchema = mongoose.Schema({
     description: {
         type: String,
         required: true,
+        alias: 'content'
     },
     category: {
         type: String,
@@ -42,6 +43,7 @@ const noticeSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Club',
         default: null,
+        required: false
     }
 }, { timestamps: true });
 

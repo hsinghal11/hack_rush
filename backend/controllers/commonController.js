@@ -309,4 +309,40 @@ const getUserSavedNotices = async (req, res) => {
     }
 };
 
-export { pushEvent, getAllNotices, getAllEvents, getAllClubs, registerForEvent, saveNotice, bookmarkEvent, requestClubMembership, getUserClubMemberships, getUserEvents, getUserSavedNotices };
+// Get user's bookmarks (both events and notices)
+const getUserBookmarks = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await UserModel.findById(userId)
+            .populate({
+                path: 'bookmarks.events',
+                match: { status: 'approved' },
+                populate: {
+                    path: 'club',
+                    select: 'name'
+                }
+            })
+            .populate({
+                path: 'bookmarks.notices',
+                match: { status: 'approved' },
+                populate: {
+                    path: 'club',
+                    select: 'name'
+                }
+            });
+
+        res.status(200).json({
+            success: true,
+            bookmarks: user.bookmarks
+        });
+    } catch (error) {
+        console.error('Error fetching user bookmarks:', error);
+        res.status(500).json({ 
+            success: false,
+            message: error.message 
+        });
+    }
+};
+
+export { pushEvent, getAllNotices, getAllEvents, getAllClubs, registerForEvent, saveNotice, bookmarkEvent, requestClubMembership, getUserClubMemberships, getUserEvents, getUserSavedNotices, getUserBookmarks };

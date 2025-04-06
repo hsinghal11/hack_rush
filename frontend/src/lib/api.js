@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = 'https://hack-rush.onrender.com/api';
+// const API_URL = 'https://hack-rush.onrender.com/api';
+const API_URL = 'http://localhost:8000/api';
+
 
 // Create an axios instance with baseURL
 const api = axios.create({
@@ -148,7 +150,13 @@ export const getAllClubs = async () => {
 export const getUserClubs = async () => {
   try {
     const response = await api.get('/user/clubs');
-    return response.data;
+    console.log('User clubs response:', response.data);
+    
+    // Check for the expected format
+    if (response.data.success && response.data.clubMemberships) {
+      return response.data.clubMemberships || [];
+    }
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching user clubs:', error.response?.data || error.message);
     return [];  // Return empty array instead of throwing
@@ -192,7 +200,34 @@ export const getAllEvents = async () => {
 export const getUserEvents = async () => {
   try {
     const response = await api.get('/user/events');
-    return response.data;
+    console.log('User events response:', response.data);
+    
+    // Check for the expected format
+    if (response.data.success && response.data.registeredEvents) {
+      // Return registered events
+      const registeredEvents = response.data.registeredEvents.map(event => ({
+        ...event,
+        isRegistered: true
+      }));
+      
+      // Also get bookmarked events
+      const bookmarkResponse = await api.get('/user/bookmarks');
+      console.log('User bookmarks response:', bookmarkResponse.data);
+      
+      let bookmarkedEvents = [];
+      if (bookmarkResponse.data.success && bookmarkResponse.data.bookmarks && 
+          bookmarkResponse.data.bookmarks.events) {
+        bookmarkedEvents = bookmarkResponse.data.bookmarks.events.map(event => ({
+          ...event,
+          isBookmarked: true
+        }));
+      }
+      
+      // Combine both types of events
+      return [...registeredEvents, ...bookmarkedEvents];
+    }
+    
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching user events:', error.response?.data || error.message);
     return [];  // Return empty array instead of throwing
@@ -233,7 +268,17 @@ export const getAllNotices = async () => {
 export const getUserNotices = async () => {
   try {
     const response = await api.get('/user/notices');
-    return response.data;
+    console.log('User notices response:', response.data);
+    
+    // Check for the expected format
+    if (response.data.success && response.data.savedNotices) {
+      return response.data.savedNotices.map(notice => ({
+        ...notice,
+        isSaved: true
+      }));
+    }
+    
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching user notices:', error.response?.data || error.message);
     return [];  // Return empty array instead of throwing
@@ -299,23 +344,46 @@ export const getCoordinatorClub = async () => {
 
 export const getCoordinatorMembershipRequests = async (clubId) => {
   try {
+    console.log(`Fetching membership requests for club ${clubId}`);
     const response = await api.get(`/coordinator/clubs/${clubId}/membership-requests`);
-    return response.data;
+    console.log('Membership requests response:', response.data);
+    
+    // Check response format and return appropriate data
+    if (response.data.success && response.data.requests) {
+      // If the backend returns the expected format with requests array
+      return response.data.requests.map(req => ({
+        _id: req._id,
+        name: req.user?.name || 'Unknown User',
+        email: req.user?.email || 'No Email',
+        status: req.status,
+        requestDate: req.requestDate
+      }));
+    } else if (Array.isArray(response.data)) {
+      // If the backend returns an array directly
+      return response.data;
+    }
+    
+    // Return empty array if data format is unexpected
+    return [];
   } catch (error) {
-    throw error.response ? error.response.data : error;
+    console.error('Error fetching membership requests:', error.response?.data || error.message);
+    return []; // Return empty array instead of throwing
   }
 };
 
 export const respondToMembershipRequest = async (clubId, requestId, status) => {
   try {
+    console.log(`Responding to membership request for club ${clubId}, requestId: ${requestId}, status: ${status}`);
     const response = await api.post('/coordinator/clubs/membership-response', {
       clubId,
       requestId,
       status // 'accepted' or 'rejected'
     });
+    console.log('Membership response API result:', response.data);
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : error;
+    console.error('Error responding to membership request:', error.response?.data || error.message);
+    throw error.response?.data || { message: `Failed to ${status} membership request: ${error.message}` };
   }
 };
 
@@ -334,7 +402,14 @@ export const createEvent = async (eventData) => {
 export const createNotice = async (noticeData) => {
   try {
     console.log('Creating notice with data:', noticeData);
-    const response = await api.post('/coordinator/notices', noticeData);
+    
+    // Determine if we should use the admin endpoint
+    const isAdminNotice = noticeData.isAdminNotice || false;
+    
+    // Use admin endpoint if it's an admin notice
+    const endpoint = isAdminNotice ? '/admin/notices' : '/coordinator/notices';
+    
+    const response = await api.post(endpoint, noticeData);
     console.log('Create notice response:', response.data);
     return response.data;
   } catch (error) {
@@ -567,6 +642,30 @@ export const sendPushNotification = async (title, body, options = {}) => {
   } catch (error) {
     console.error('Error sending push notification:', error.response?.data || error.message);
     throw error.response?.data || { message: 'Failed to send push notification' };
+  }
+};
+
+export const editNotice = async (noticeId, noticeData) => {
+  try {
+    console.log(`Editing notice ${noticeId} with data:`, noticeData);
+    const response = await api.put(`/admin/notices/${noticeId}`, noticeData);
+    console.log('Edit notice response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error editing notice:', error.response?.data || error.message);
+    throw error.response ? error.response.data : { message: `Failed to edit notice: ${error.message}` };
+  }
+};
+
+export const removeNotice = async (noticeId) => {
+  try {
+    console.log(`Removing notice ${noticeId}`);
+    const response = await api.delete(`/admin/notices/${noticeId}`);
+    console.log('Remove notice response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error removing notice:', error.response?.data || error.message);
+    throw error.response ? error.response.data : { message: `Failed to remove notice: ${error.message}` };
   }
 };
 

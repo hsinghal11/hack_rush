@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
+import { useEffect } from 'react';
+import { registerSW } from 'virtual:pwa-register';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -41,6 +43,39 @@ const ProtectedRoute = ({ children, role }) => {
 };
 
 function App() {
+  // Register service worker for PWA
+  useEffect(() => {
+    try {
+      if ('serviceWorker' in navigator) {
+        // This registers the service worker from the virtual module created by VitePWA
+        const updateSW = registerSW({
+          onNeedRefresh() {
+            // Show a prompt to the user to refresh for new content
+            console.log('New content available, please refresh');
+            // You could show a toast or dialog here
+          },
+          onOfflineReady() {
+            // Notify the user the app is ready for offline use
+            console.log('App ready for offline use');
+          },
+          onRegistered(swRegistration) {
+            console.log('Service worker registered:', swRegistration);
+          },
+          onRegisterError(error) {
+            console.error('Service worker registration error:', error);
+          }
+        });
+        
+        // Cleanup
+        return () => {
+          updateSW?.(); // This is for cleanup
+        };
+      }
+    } catch (error) {
+      console.error('Error registering service worker:', error);
+    }
+  }, []);
+
   return (
     <AuthProvider>
       <Router>

@@ -156,6 +156,9 @@ const submitNotice = async (req, res) => {
     try {
         const { title, content, category, dueDate, clubId, isAdminNotice } = req.body;
         
+        // Convert content to description
+        const description = content;
+        
         // Check if club exists
         const club = await ClubModel.findById(clubId);
         if (!club) {
@@ -180,7 +183,7 @@ const submitNotice = async (req, res) => {
         
         const notice = await NoticeModel.create({
             title,
-            content,
+            description,
             category,
             dueDate,
             club: clubId,
@@ -204,6 +207,7 @@ const submitNotice = async (req, res) => {
             notice
         });
     } catch (error) {
+        console.error('Error creating notice:', error);
         res.status(500).json({ 
             success: false,
             message: error.message 

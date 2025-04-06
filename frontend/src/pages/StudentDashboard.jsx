@@ -88,36 +88,46 @@ const StudentDashboard = () => {
           getUserNotices()
         ]);
         
-        // Check if we have valid data
-        if (Object.keys(profileData).length === 0) {
-          console.warn('Empty profile data returned');
-        }
+        console.log('Fetched user data:', { profileData, clubsData, eventsData, noticesData });
         
+        // Set user profile
         setUserProfile(profileData);
         
         // Process clubs data
-        setMyClubs(Array.isArray(clubsData) ? clubsData.map(club => ({
-          ...club,
-          isMember: true  // These are user's clubs, so they are a member
-        })) : []);
+        if (Array.isArray(clubsData)) {
+          console.log('Setting clubs:', clubsData);
+          setMyClubs(clubsData.map(club => ({
+            ...club,
+            isMember: true
+          })));
+        } else {
+          console.warn('Unexpected clubs data format:', clubsData);
+          setMyClubs([]);
+        }
         
-        // Process events data and separate registered vs bookmarked
+        // Process events data (separating registered vs bookmarked)
         if (Array.isArray(eventsData)) {
+          console.log('Processing events data:', eventsData);
           const registered = eventsData.filter(event => event.isRegistered);
           const bookmarked = eventsData.filter(event => event.isBookmarked && !event.isRegistered);
           
+          console.log('Setting events - registered:', registered, 'bookmarked:', bookmarked);
           setMyEvents(registered);
           setMyBookmarkedEvents(bookmarked);
         } else {
+          console.warn('Unexpected events data format:', eventsData);
           setMyEvents([]);
           setMyBookmarkedEvents([]);
         }
         
-        // Process notices - all should be marked as saved
-        setMySavedNotices(Array.isArray(noticesData) ? noticesData.map(notice => ({
-          ...notice,
-          isSaved: true
-        })) : []);
+        // Process notices data
+        if (Array.isArray(noticesData)) {
+          console.log('Setting notices:', noticesData);
+          setMySavedNotices(noticesData);
+        } else {
+          console.warn('Unexpected notices data format:', noticesData);
+          setMySavedNotices([]);
+        }
       } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to load your dashboard data. Please try again later.');
@@ -154,10 +164,11 @@ const StudentDashboard = () => {
               </CardHeader>
               <CardContent>
                 {myClubs.length > 0 ? (
-                  <ul>
+                  <ul className="space-y-2">
                     {myClubs.map((club) => (
-                      <li key={club._id} className="mb-1">
-                        {club.name}
+                      <li key={club._id} className="mb-1 flex items-center">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full mr-2"></div>
+                        <span>{club.name}</span>
                       </li>
                     ))}
                   </ul>
@@ -174,10 +185,17 @@ const StudentDashboard = () => {
               </CardHeader>
               <CardContent>
                 {myEvents.length > 0 ? (
-                  <ul>
+                  <ul className="space-y-2">
                     {myEvents.map((event) => (
-                      <li key={event._id} className="mb-1">
-                        {event.name} - {new Date(event.date).toLocaleDateString()}
+                      <li key={event._id} className="mb-1 flex items-center">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        <div>
+                          <div>{event.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(event.date).toLocaleDateString()}
+                            {event.club?.name && ` • ${event.club.name}`}
+                          </div>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -189,27 +207,28 @@ const StudentDashboard = () => {
             
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle>Quick Links</CardTitle>
-                <CardDescription>Useful resources</CardDescription>
+                <CardTitle>My Bookmarks</CardTitle>
+                <CardDescription>{myBookmarkedEvents.length} bookmarked events</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
-                  <li>
-                    <a href="/clubs" className="text-purple-600 hover:underline">
-                      Browse All Clubs
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/events" className="text-purple-600 hover:underline">
-                      Upcoming Events
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/notices" className="text-purple-600 hover:underline">
-                      Latest Notices
-                    </a>
-                  </li>
-                </ul>
+                {myBookmarkedEvents.length > 0 ? (
+                  <ul className="space-y-2">
+                    {myBookmarkedEvents.map((event) => (
+                      <li key={event._id} className="mb-1 flex items-center">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+                        <div>
+                          <div>{event.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(event.date).toLocaleDateString()}
+                            {event.club?.name && ` • ${event.club.name}`}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500">You haven't bookmarked any events</p>
+                )}
               </CardContent>
             </Card>
           </div>

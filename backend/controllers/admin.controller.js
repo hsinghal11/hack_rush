@@ -138,7 +138,10 @@ const approveOrRejectEvent = async (req, res) => {
 // Notice controllers
 const postNotice = async (req, res) => {
     try {
-        const { title, content, category, clubId, isAdminNotice } = req.body;
+        const { title, content, category, clubId, isAdminNotice, dueDate } = req.body;
+        
+        // Convert content to description for consistency with the model
+        const description = content;
         
         // For admin notices, clubId is optional
         let club = null;
@@ -153,21 +156,27 @@ const postNotice = async (req, res) => {
             }
         }
         
-        // Create notice data
+        // Create notice data - use description, not content
         const noticeData = { 
             title, 
-            content, 
+            description, // Changed from content to description
             category: category || 'general',
             status: 'approved', // Auto-approve admin notices
             createdBy: req.user._id,
             approvedBy: req.user._id
         };
         
+        // Add due date if provided
+        if (dueDate) {
+            noticeData.dueDate = dueDate;
+        }
+        
         // Add club reference only if a club was found and this is not an admin notice
         if (club && !isAdminNotice) {
             noticeData.club = clubId;
         }
         
+        console.log('Creating notice with data:', noticeData);
         const notice = await NoticeModel.create(noticeData);
         
         // Add notice to club's notices array if applicable
@@ -183,6 +192,7 @@ const postNotice = async (req, res) => {
             notice
         });
     } catch (error) {
+        console.error('Error creating admin notice:', error);
         res.status(500).json({ 
             success: false,
             message: error.message 

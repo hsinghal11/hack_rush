@@ -9,7 +9,8 @@ import {
     requestClubMembership,
     getUserClubMemberships,
     getUserEvents,
-    getUserSavedNotices
+    getUserSavedNotices,
+    getUserBookmarks
 } from '../controllers/commonController.js';
 import { verifyJWT } from '../middleware/auth.middleware.js';
 
@@ -32,5 +33,6 @@ router.post('/clubs/:clubId/request-membership', verifyJWT, requestClubMembershi
 router.get('/user/clubs', verifyJWT, getUserClubMemberships);
 router.get('/user/events', verifyJWT, getUserEvents);
 router.get('/user/notices', verifyJWT, getUserSavedNotices);
+router.get('/user/bookmarks', verifyJWT, getUserBookmarks);
 
 export default router; 

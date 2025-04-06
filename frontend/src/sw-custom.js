@@ -1,5 +1,10 @@
 // Custom service worker to handle push notifications
 
+// This is the injection point for the precache manifest
+// It must match exactly what's expected by workbox
+const manifest = self.__WB_MANIFEST;
+// The line above must NOT be changed or else precaching will fail
+
 self.addEventListener('push', event => {
   try {
     const data = event.data.json();

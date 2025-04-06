@@ -8,16 +8,22 @@ import {
   createNotice,
   updateClub,
   getCoordinatorAllEvents,
-  getCoordinatorAllNotices
+  getCoordinatorAllNotices,
+  getAllClubs
 } from '../lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
+import { useLocation } from 'react-router-dom';
 
 const CoordinatorDashboard = () => {
   const { currentUser } = useAuth();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const clubIdFromQuery = queryParams.get('clubId');
+
   const [club, setClub] = useState(null);
   const [membershipRequests, setMembershipRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +34,6 @@ const CoordinatorDashboard = () => {
   // Dialog open states
   const [editClubOpen, setEditClubOpen] = useState(false);
   const [createEventOpen, setCreateEventOpen] = useState(false);
-  const [createNoticeOpen, setCreateNoticeOpen] = useState(false);
 
   // Form states for club edit
   const [clubName, setClubName] = useState('');
@@ -40,12 +45,6 @@ const CoordinatorDashboard = () => {
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [eventLocation, setEventLocation] = useState('');
-  
-  // Form states for notice creation
-  const [noticeTitle, setNoticeTitle] = useState('');
-  const [noticeCategory, setNoticeCategory] = useState('');
-  const [noticeDescription, setNoticeDescription] = useState('');
-  const [noticeDueDate, setNoticeDueDate] = useState('');
 
   useEffect(() => {
     const fetchClubData = async () => {
@@ -61,13 +60,72 @@ const CoordinatorDashboard = () => {
         
         console.log('Current user role:', currentUser.role);
         
-        const clubData = await getCoordinatorClub();
-        console.log('Club data received:', clubData);
+        let clubData;
         
-        if (!clubData) {
-          setError('You are not assigned to any club. Please contact an administrator.');
-          setLoading(false);
-          return;
+        // If admin is accessing with clubId parameter, load that specific club
+        if (currentUser.role === 'admin' && clubIdFromQuery) {
+          console.log('Admin accessing specific club:', clubIdFromQuery);
+          
+          try {
+            // For admin users, we need to fetch the specific club directly
+            // First fetch membership requests, events and notices using the clubId
+            const requests = await getCoordinatorMembershipRequests(clubIdFromQuery);
+            setMembershipRequests(requests);
+            
+            // Fetch all events including pending and rejected
+            const events = await getCoordinatorAllEvents(clubIdFromQuery);
+            console.log('All events fetched:', events);
+            setAllEvents(events);
+            
+            // Fetch all notices including pending and rejected
+            const notices = await getCoordinatorAllNotices(clubIdFromQuery);
+            console.log('All notices fetched:', notices);
+            setAllNotices(notices);
+            
+            // The getCoordinatorClub endpoint may return the coordinator's club
+            // So for admin, we can use the full club info from the clubs endpoint
+            const allClubs = await getAllClubs();
+            clubData = allClubs.find(c => c._id === clubIdFromQuery);
+            
+            if (!clubData) {
+              setError('Club not found. The club may have been deleted.');
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('Error fetching specific club data:', err);
+            setError('Failed to load the specified club. Please try again later.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Regular coordinator flow - get their assigned club
+          clubData = await getCoordinatorClub();
+          console.log('Club data received:', clubData);
+          
+          if (!clubData) {
+            setError('You are not assigned to any club. Please contact an administrator.');
+            setLoading(false);
+            return;
+          }
+          
+          if (clubData && clubData._id) {
+            // Fetch membership requests
+            const requests = await getCoordinatorMembershipRequests(clubData._id);
+            setMembershipRequests(requests);
+            
+            // Fetch all events including pending and rejected
+            const events = await getCoordinatorAllEvents(clubData._id);
+            console.log('All events fetched:', events);
+            setAllEvents(events);
+            
+            // Fetch all notices including pending and rejected
+            const notices = await getCoordinatorAllNotices(clubData._id);
+            console.log('All notices fetched:', notices);
+            setAllNotices(notices);
+          } else {
+            console.error('Club data missing _id field:', clubData);
+          }
         }
         
         setClub(clubData);
@@ -76,24 +134,6 @@ const CoordinatorDashboard = () => {
         if (clubData) {
           setClubName(clubData.name || '');
           setClubDescription(clubData.description || '');
-        }
-        
-        if (clubData && clubData._id) {
-          // Fetch membership requests
-          const requests = await getCoordinatorMembershipRequests(clubData._id);
-          setMembershipRequests(requests);
-          
-          // Fetch all events including pending and rejected
-          const events = await getCoordinatorAllEvents(clubData._id);
-          console.log('All events fetched:', events);
-          setAllEvents(events);
-          
-          // Fetch all notices including pending and rejected
-          const notices = await getCoordinatorAllNotices(clubData._id);
-          console.log('All notices fetched:', notices);
-          setAllNotices(notices);
-        } else {
-          console.error('Club data missing _id field:', clubData);
         }
       } catch (err) {
         console.error('Error fetching club data:', err);
@@ -108,7 +148,7 @@ const CoordinatorDashboard = () => {
     } else {
       setError('Not logged in. Please login first.');
     }
-  }, [currentUser]);
+  }, [currentUser, clubIdFromQuery]);
 
   const handleMembershipResponse = async (requestId, status) => {
     if (!club || !club._id) return;
@@ -165,111 +205,44 @@ const CoordinatorDashboard = () => {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    console.log('Form submitted: handleCreateEvent');
     
-    console.log('handleCreateEvent called', { eventName, eventDescription, eventDate, eventTime, eventLocation });
-    if (!club) {
-      console.error('No club found');
-      alert('No club data available. Please refresh the page or contact an administrator.');
-      return;
-    }
+    if (!club || !club._id) return;
     
-    if (!club._id) {
-      console.error('Club data missing _id field:', club);
-      alert('Club data incomplete. Please refresh the page or contact an administrator.');
+    if (!eventName || !eventDescription || !eventDate || !eventLocation) {
+      alert('Please fill in all required fields');
       return;
     }
     
     try {
+      const isAdmin = currentUser.role === 'admin';
       const eventData = {
         name: eventName,
         description: eventDescription,
         date: eventDate,
         time: eventTime,
         location: eventLocation,
-        clubId: club._id
+        clubId: club._id,
+        isAdminEvent: isAdmin // When admin creates an event, it should be auto-approved
       };
       
       console.log('Creating event with data:', eventData);
       await createEvent(eventData);
-      alert('Event submitted for approval');
+      alert('Event created successfully!');
       
-      // Reset form
+      // Reset form fields
       setEventName('');
       setEventDescription('');
       setEventDate('');
       setEventTime('');
       setEventLocation('');
-      
-      // Close the dialog
       setCreateEventOpen(false);
       
-      // Refresh club data to include the new event
-      const updatedClub = await getCoordinatorClub();
-      setClub(updatedClub);
-      
-      // Also refresh all events to include the pending event
+      // Refresh events
       const events = await getCoordinatorAllEvents(club._id);
       setAllEvents(events);
     } catch (err) {
       console.error('Error creating event:', err);
-      alert(`Failed to create event: ${err.message || 'Unknown error'}`);
-      // Close the dialog even if there's an error
-      setCreateEventOpen(false);
-    }
-  };
-
-  const handleCreateNotice = async (e) => {
-    e.preventDefault();
-    console.log('Form submitted: handleCreateNotice');
-    
-    console.log('handleCreateNotice called', { noticeTitle, noticeCategory, noticeDescription, noticeDueDate });
-    if (!club) {
-      console.error('No club found');
-      alert('No club data available. Please refresh the page or contact an administrator.');
-      return;
-    }
-    
-    if (!club._id) {
-      console.error('Club data missing _id field:', club);
-      alert('Club data incomplete. Please refresh the page or contact an administrator.');
-      return;
-    }
-    
-    try {
-      const noticeData = {
-        title: noticeTitle,
-        description: noticeDescription,
-        category: noticeCategory,
-        dueDate: noticeDueDate,
-        clubId: club._id
-      };
-      
-      console.log('Creating notice with data:', noticeData);
-      await createNotice(noticeData);
-      alert('Notice submitted for approval');
-      
-      // Reset form
-      setNoticeTitle('');
-      setNoticeCategory('');
-      setNoticeDescription('');
-      setNoticeDueDate('');
-      
-      // Close the dialog
-      setCreateNoticeOpen(false);
-      
-      // Refresh club data to include the new notice
-      const updatedClub = await getCoordinatorClub();
-      setClub(updatedClub);
-      
-      // Also refresh all notices to include the pending notice
-      const notices = await getCoordinatorAllNotices(club._id);
-      setAllNotices(notices);
-    } catch (err) {
-      console.error('Error creating notice:', err);
-      alert(`Failed to create notice: ${err.message || 'Unknown error'}`);
-      // Close the dialog even if there's an error
-      setCreateNoticeOpen(false);
+      alert('Failed to create event: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -487,7 +460,7 @@ const CoordinatorDashboard = () => {
               <TabsTrigger value="members">Members</TabsTrigger>
               <TabsTrigger value="requests">Membership Requests</TabsTrigger>
               <TabsTrigger value="events">Events</TabsTrigger>
-              <TabsTrigger value="notices">Notices</TabsTrigger>
+              {/* <TabsTrigger value="notices">Notices</TabsTrigger> */}
             </TabsList>
             
             <TabsContent value="members">
@@ -653,88 +626,16 @@ const CoordinatorDashboard = () => {
             
             <TabsContent value="notices">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Club Notices</CardTitle>
-                    <CardDescription>Manage your club notices</CardDescription>
-                  </div>
-                  <Dialog open={createNoticeOpen} onOpenChange={setCreateNoticeOpen}>
-                    <DialogTrigger asChild>
-                      <Button>Create Notice</Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>Create New Notice</DialogTitle>
-                        <DialogDescription>
-                          Fill in the details for your new notice.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleCreateNotice}>
-                        <div className="grid gap-4 py-4">
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="noticeTitle" className="text-right">
-                              Title
-                            </label>
-                            <Input 
-                              id="noticeTitle" 
-                              placeholder="Notice title" 
-                              className="col-span-3"
-                              value={noticeTitle}
-                              onChange={(e) => setNoticeTitle(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="noticeCategory" className="text-right">
-                              Category
-                            </label>
-                            <Input 
-                              id="noticeCategory" 
-                              placeholder="Notice category" 
-                              className="col-span-3"
-                              value={noticeCategory}
-                              onChange={(e) => setNoticeCategory(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="noticeDescription" className="text-right">
-                              Description
-                            </label>
-                            <Input 
-                              id="noticeDescription" 
-                              placeholder="Notice description" 
-                              className="col-span-3"
-                              value={noticeDescription}
-                              onChange={(e) => setNoticeDescription(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="noticeDueDate" className="text-right">
-                              Due Date
-                            </label>
-                            <Input 
-                              id="noticeDueDate" 
-                              type="date" 
-                              className="col-span-3"
-                              value={noticeDueDate}
-                              onChange={(e) => setNoticeDueDate(e.target.value)}
-                              required
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button type="button" variant="outline" onClick={() => setCreateNoticeOpen(false)} className="mr-2">
-                            Cancel
-                          </Button>
-                          <Button type="submit">Create Notice</Button>
-                        </DialogFooter>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
+                <CardHeader>
+                  <CardTitle>Club Notices</CardTitle>
+                  <CardDescription>View notices for your club</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">
+                      Only admins can create or edit notices. Please contact an administrator if you need to post a notice.
+                    </p>
+                  </div>
                   {allNotices && allNotices.length > 0 ? (
                     <div className="overflow-x-auto">
                       <div className="mb-4">
@@ -753,15 +654,14 @@ const CoordinatorDashboard = () => {
                             <th className="text-left py-3 px-4">Description</th>
                             <th className="text-left py-3 px-4">Due Date</th>
                             <th className="text-left py-3 px-4">Status</th>
-                            <th className="text-right py-3 px-4">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {allNotices.map((notice) => (
                             <tr key={notice._id} className="border-b hover:bg-gray-50">
                               <td className="py-3 px-4">{notice.title}</td>
-                              <td className="py-3 px-4">{notice.description}</td>
-                              <td className="py-3 px-4">{new Date(notice.dueDate).toLocaleDateString()}</td>
+                              <td className="py-3 px-4">{notice.description || notice.content}</td>
+                              <td className="py-3 px-4">{notice.dueDate ? new Date(notice.dueDate).toLocaleDateString() : 'No due date'}</td>
                               <td className="py-3 px-4">
                                 <span className={`px-2 py-1 rounded-full text-xs ${
                                   notice.status === 'approved' ? 'bg-green-100 text-green-800' : 
@@ -775,11 +675,6 @@ const CoordinatorDashboard = () => {
                                     Reason: {notice.rejectionReason}
                                   </div>
                                 )}
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <Button variant="outline" size="sm">
-                                  Edit
-                                </Button>
                               </td>
                             </tr>
                           ))}

@@ -46,83 +46,15 @@ const Home = () => {
     fetchData();
   }, []);
 
-  // Placeholder data for initial rendering
-  const placeholderClubs = [
-    {
-      _id: '1',
-      name: 'Coding Club',
-      description: 'A club for programming enthusiasts to learn and collaborate on projects.',
-      coordinatorEmail: 'coordinator@example.com'
-    },
-    {
-      _id: '2',
-      name: 'Photography Club',
-      description: 'Capture moments and learn photography techniques with like-minded students.',
-      coordinatorEmail: 'photo@example.com'
-    },
-    {
-      _id: '3',
-      name: 'Debate Club',
-      description: 'Hone your public speaking and argumentation skills through structured debates.',
-      coordinatorEmail: 'debate@example.com'
-    }
-  ];
-
-  const placeholderEvents = [
-    {
-      _id: '1',
-      name: 'Hackathon 2023',
-      description: 'A 24-hour coding competition to build innovative solutions for real-world problems.',
-      date: '2023-12-15',
-      time: '10:00 AM',
-      location: 'Main Auditorium'
-    },
-    {
-      _id: '2',
-      name: 'Photography Workshop',
-      description: 'Learn advanced photography skills with professional photographers.',
-      date: '2023-12-10',
-      time: '2:00 PM',
-      location: 'Arts Center'
-    },
-    {
-      _id: '3',
-      name: 'Inter-College Debate',
-      description: 'Participate in the annual inter-college debate competition.',
-      date: '2023-12-20',
-      time: '11:00 AM',
-      location: 'Conference Hall'
-    }
-  ];
-
-  const placeholderNotices = [
-    {
-      _id: '1',
-      title: 'Hackathon Registration Open',
-      category: 'Event',
-      description: 'Registration for the annual hackathon is now open. Form your teams and register before Dec 10.',
-      dueDate: '2023-12-10'
-    },
-    {
-      _id: '2',
-      title: 'Photography Exhibition',
-      category: 'Announcement',
-      description: 'Submit your best photographs for the upcoming exhibition. Theme: Nature and Wildlife.',
-      dueDate: '2023-12-05'
-    },
-    {
-      _id: '3',
-      title: 'Debate Club Meeting',
-      category: 'Meeting',
-      description: 'Important meeting for all Debate Club members to discuss the upcoming competition.',
-      dueDate: '2023-12-01'
-    }
-  ];
+  // Remove any sample or predefined data
+  const defaultEvents = [];
+  const defaultNotices = [];
+  const defaultClubs = [];
 
   // Use placeholder data if API data is not available yet
-  const displayClubs = clubs.length > 0 ? clubs : placeholderClubs;
-  const displayEvents = events.length > 0 ? events : placeholderEvents;
-  const displayNotices = notices.length > 0 ? notices : placeholderNotices;
+  const displayClubs = clubs.length > 0 ? clubs : defaultClubs;
+  const displayEvents = events.length > 0 ? events : defaultEvents;
+  const displayNotices = notices.length > 0 ? notices : defaultNotices;
 
   return (
     <div>

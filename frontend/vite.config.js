@@ -6,31 +6,39 @@ import { resolve } from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(),
+  plugins: [
+    react(), 
+    tailwindcss(),
     VitePWA({
+      strategies: 'generateSW',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw-custom.js',
-      manifestFilename: 'manifest.webmanifest',
-      devOptions: {
-        enabled: true,
-        type: 'module'
-      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,jpg,jpeg,json}'],
         cleanupOutdatedCaches: true,
-        sourcemap: true
+        skipWaiting: true,
+        clientsClaim: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/hack-rush\.onrender\.com\/api/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              },
+              networkTimeoutSeconds: 10
+            }
+          }
+        ]
       },
       manifest: {
         name: 'Campus Unified',
         short_name: 'Campus App',
         description: 'Campus management application with push notifications',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
         theme_color: '#6366f1',
+        background_color: '#ffffff',
         icons: [
           {
             src: '/favicon.svg',
@@ -45,8 +53,14 @@ export default defineConfig({
             purpose: 'any maskable'
           },
         ],
-      }
-    })
+        display: 'standalone',
+        start_url: '/',
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
+    }),
   ],
   server: {
     hmr: {
