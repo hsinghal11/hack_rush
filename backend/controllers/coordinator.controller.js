@@ -6,7 +6,7 @@ import UserModel from "../models/user.model.js";
 // Event management
 const submitEvent = async (req, res) => {
     try {
-        const { name, description, date, time, location, clubId } = req.body;
+        const { name, description, date, time, location, clubId, isAdminEvent } = req.body;
         
         // Check if club exists
         const club = await ClubModel.findById(clubId);
@@ -17,15 +17,19 @@ const submitEvent = async (req, res) => {
             });
         }
         
-        // Verify that the user is the coordinator of this club
-        if (club.coordinator.toString() !== req.user._id.toString()) {
+        // For regular coordinators, verify they are coordinator of this club
+        const isAdmin = req.user.role === 'admin';
+        if (!isAdmin && club.coordinator.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 success: false,
                 message: "You are not authorized to create events for this club" 
             });
         }
         
-        // Create the event with pending status
+        // Create the event with appropriate status
+        // Auto-approve if created by admin or isAdminEvent flag is set
+        const status = isAdmin || isAdminEvent ? 'approved' : 'pending';
+        
         const event = await EventModel.create({
             name,
             description,
@@ -34,12 +38,22 @@ const submitEvent = async (req, res) => {
             location,
             club: clubId,
             createdBy: req.user._id,
-            status: 'pending'
+            status: status,
+            // If admin is creating and auto-approving, also set the approvedBy field
+            ...(status === 'approved' ? { approvedBy: req.user._id } : {})
         });
+        
+        // If event is approved, add it to the club's events array
+        if (status === 'approved') {
+            await ClubModel.findByIdAndUpdate(
+                clubId,
+                { $addToSet: { events: event._id } }
+            );
+        }
         
         res.status(201).json({
             success: true,
-            message: "Event submitted for approval",
+            message: status === 'approved' ? "Event created successfully" : "Event submitted for approval",
             event
         });
     } catch (error) {
@@ -140,7 +154,7 @@ const getClubEvents = async (req, res) => {
 // Notice management
 const submitNotice = async (req, res) => {
     try {
-        const { title, description, category, dueDate, clubId } = req.body;
+        const { title, content, category, dueDate, clubId, isAdminNotice } = req.body;
         
         // Check if club exists
         const club = await ClubModel.findById(clubId);
@@ -151,28 +165,42 @@ const submitNotice = async (req, res) => {
             });
         }
         
-        // Verify that the user is the coordinator of this club
-        if (club.coordinator.toString() !== req.user._id.toString()) {
+        // For regular coordinators, verify they are coordinator of this club
+        const isAdmin = req.user.role === 'admin';
+        if (!isAdmin && club.coordinator.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 success: false,
                 message: "You are not authorized to create notices for this club" 
             });
         }
         
-        // Create the notice with pending status
+        // Create the notice with appropriate status
+        // Auto-approve if created by admin or isAdminNotice flag is set
+        const status = isAdmin || isAdminNotice ? 'approved' : 'pending';
+        
         const notice = await NoticeModel.create({
             title,
-            description,
+            content,
             category,
             dueDate,
             club: clubId,
             createdBy: req.user._id,
-            status: 'pending'
+            status: status,
+            // If admin is creating and auto-approving, also set the approvedBy field
+            ...(status === 'approved' ? { approvedBy: req.user._id } : {})
         });
+        
+        // If notice is approved, add it to the club's notices array
+        if (status === 'approved') {
+            await ClubModel.findByIdAndUpdate(
+                clubId,
+                { $addToSet: { notices: notice._id } }
+            );
+        }
         
         res.status(201).json({
             success: true,
-            message: "Notice submitted for approval",
+            message: status === 'approved' ? "Notice created successfully" : "Notice submitted for approval",
             notice
         });
     } catch (error) {
@@ -424,8 +452,9 @@ const respondToMembershipRequest = async (req, res) => {
             });
         }
         
-        // Check if user is coordinator of the club
-        if (club.coordinator.toString() !== req.user._id.toString()) {
+        // Check if user is an admin or coordinator of the club
+        const isAdmin = req.user.role === 'admin';
+        if (!isAdmin && club.coordinator.toString() !== req.user._id.toString()) {
             return res.status(403).json({ 
                 success: false,
                 message: "You are not authorized to manage this club's membership requests" 

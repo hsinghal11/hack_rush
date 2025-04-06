@@ -53,6 +53,26 @@ export const isClubCoordinator = async (req, res, next) => {
 // Middleware to check if user is coordinator of a specific club
 export const isClubOwner = async (req, res, next) => {
   try {
+    // If user is an admin, allow access to any club
+    if (req.user.role === 'admin') {
+      // Still need to validate club exists
+      const clubId = req.params.clubId || req.body.clubId || req.body.club;
+      
+      if (!clubId) {
+        return res.status(400).json({ message: "Club ID is required" });
+      }
+
+      const club = await ClubModel.findById(clubId);
+      
+      if (!club) {
+        return res.status(404).json({ message: "Club not found" });
+      }
+      
+      req.club = club;
+      return next();
+    }
+    
+    // For non-admin users, check if they own the club
     const clubId = req.params.clubId || req.body.clubId || req.body.club;
     
     if (!clubId) {
