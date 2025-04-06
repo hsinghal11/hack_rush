@@ -1,4 +1,4 @@
-# Club Management System
+# Unified campus
 
 A comprehensive platform for managing college clubs, events, and notices.
 
