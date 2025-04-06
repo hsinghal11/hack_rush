@@ -41,7 +41,7 @@ export const isAdmin = async (req, res, next) => {
 
 export const isClubCoordinator = async (req, res, next) => {
   try {
-    if (req.user.role !== 'club-coordinator') {
+    if (req.user.role !== 'club-coordinator' && req.user.role !== 'admin') {
       return res.status(403).json({ message: "Access denied: Club Coordinator role required" });
     }
     next();
