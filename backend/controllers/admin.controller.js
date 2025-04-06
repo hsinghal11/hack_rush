@@ -6,35 +6,48 @@ import UserModel from "../models/user.model.js";
 // Event controllers
 const submitEvent = async (req, res) => {
     try {
-        const { name, description, date, time, location, clubId } = req.body;
+        const { name, description, date, time, location, clubId, category } = req.body;
         
-        // Find club
-        const club = await ClubModel.findById(clubId);
-        if (!club) {
-            return res.status(404).json({ 
-                success: false,
-                message: "Club not found" 
-            });
+        // For admin users, clubId is optional
+        let club = null;
+        if (clubId) {
+            // Find club if clubId is provided
+            club = await ClubModel.findById(clubId);
+            if (!club) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: "Club not found" 
+                });
+            }
         }
         
-        // Create event with approved status (since admin is creating it)
-        const event = await EventModel.create({ 
+        // Create event with event data
+        const eventData = { 
             name, 
             description, 
             date, 
             time, 
-            location, 
-            club: clubId,
+            location,
+            category: category || 'general',
             status: 'approved',
             createdBy: req.user._id,
             approvedBy: req.user._id
-        });
+        };
         
-        // Add event to club's events array
-        await ClubModel.findByIdAndUpdate(
-            clubId,
-            { $addToSet: { events: event._id } }
-        );
+        // Add club reference only if a club was found
+        if (club) {
+            eventData.club = clubId;
+        }
+        
+        const event = await EventModel.create(eventData);
+        
+        // Add event to club's events array if club exists
+        if (club) {
+            await ClubModel.findByIdAndUpdate(
+                clubId,
+                { $addToSet: { events: event._id } }
+            );
+        }
         
         res.status(201).json({
             success: true,
@@ -124,23 +137,41 @@ const approveOrRejectEvent = async (req, res) => {
 
 // Notice controllers
 const postNotice = async (req, res) => {
-    try {   
-        const { title, description, category, dueDate, clubId } = req.body;
+    try {
+        const { title, content, category, clubId, isAdminNotice } = req.body;
         
-        // Create notice with approved status (since admin is creating it)
-        const notice = await NoticeModel.create({
-            title,
-            description,
-            category,
-            dueDate,
-            club: clubId || null,
-            status: 'approved',
+        // For admin notices, clubId is optional
+        let club = null;
+        if (clubId && !isAdminNotice) {
+            // Find club if clubId is provided and not an admin notice
+            club = await ClubModel.findById(clubId);
+            if (!club) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: "Club not found" 
+                });
+            }
+        }
+        
+        // Create notice data
+        const noticeData = { 
+            title, 
+            content, 
+            category: category || 'general',
+            status: 'approved', // Auto-approve admin notices
             createdBy: req.user._id,
             approvedBy: req.user._id
-        });
+        };
         
-        // If club provided, add notice to club's notices array
-        if (clubId) {
+        // Add club reference only if a club was found and this is not an admin notice
+        if (club && !isAdminNotice) {
+            noticeData.club = clubId;
+        }
+        
+        const notice = await NoticeModel.create(noticeData);
+        
+        // Add notice to club's notices array if applicable
+        if (club && !isAdminNotice) {
             await ClubModel.findByIdAndUpdate(
                 clubId,
                 { $addToSet: { notices: notice._id } }

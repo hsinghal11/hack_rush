@@ -346,6 +346,7 @@ const updateClub = async (req, res) => {
 // Membership request management
 const getMembershipRequests = async (req, res) => {
     try {
+        console.log('Fetching membership requests for club:', req.params.clubId);
         const { clubId } = req.params;
         
         // Find club
@@ -370,8 +371,24 @@ const getMembershipRequests = async (req, res) => {
             });
         }
         
+        console.log('Club membership requests:', club.membershipRequests);
+        
         // Get pending membership requests
-        const pendingRequests = club.membershipRequests.filter(request => request.status === 'pending');
+        const pendingRequests = club.membershipRequests
+            .filter(request => request.status === 'pending')
+            .map(request => {
+                // Ensure we format the data correctly
+                return {
+                    _id: request._id,
+                    user: request.user,
+                    name: request.user ? request.user.name : 'Unknown User',
+                    email: request.user ? request.user.email : 'No Email',
+                    status: request.status,
+                    requestDate: request.requestDate
+                };
+            });
+        
+        console.log('Formatted pending requests:', pendingRequests);
         
         res.status(200).json({
             success: true,
@@ -379,6 +396,7 @@ const getMembershipRequests = async (req, res) => {
             requests: pendingRequests
         });
     } catch (error) {
+        console.error('Error fetching membership requests:', error);
         res.status(500).json({ 
             success: false,
             message: error.message 
@@ -445,6 +463,7 @@ const respondToMembershipRequest = async (req, res) => {
             }
         }
         
+        // Save updated club
         await club.save();
         
         res.status(200).json({
@@ -452,6 +471,7 @@ const respondToMembershipRequest = async (req, res) => {
             message: `Membership request ${status}`
         });
     } catch (error) {
+        console.error('Error responding to membership request:', error);
         res.status(500).json({ 
             success: false,
             message: error.message 
